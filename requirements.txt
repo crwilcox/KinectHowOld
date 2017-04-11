@@ -1,0 +1,6 @@
+comtypes==1.1.2
+numpy==1.10.4
+projectoxford==0.2
+pykinect2==0.1.0
+requests==2.9.1
+../pygame-1.9.2a0-cp35-none-win32.whl
