@@ -8,11 +8,9 @@ import pygame as pygame
 import sys
 import datetime
 import timeit
+import cognitive_face as CF
 
-hearts_and_minds_mode = True
-# https://projectoxfordkeysignup.azurewebsites.net/Products/Index?id=MSSignup_crwilcox@microsoft.com
-key = 'FAKEKEY_GET_ONE'
-
+import config
 #from .FaceFinder import face_finder_thread
 import threading
 
@@ -26,9 +24,21 @@ from threading import Thread
 from queue import Queue, Empty
 import pygame
 from projectoxford import Client
+RATE_LIMIT_PER_MINUTE = 20
+hearts_and_minds_mode = True
+
+key = config.COGNITIVE_FACES_KEY
 
 surface_frame_queue = Queue(100)
 faces_result_queue = Queue(10)
+
+CF.Key.set(key)
+
+def detect_faces(path):
+    faces = CF.face.detect(path,landmarks=False, attributes="age,gender,smile,headPose,emotion")
+    if faces:
+        return faces
+    return []
 
 class BodyGameRuntime(object):
     def __init__(self):
@@ -58,7 +68,6 @@ class BodyGameRuntime(object):
 
         self._faces = []
         self._face_bodies = []
-        #self._faces = [{u'attributes': {u'gender': u'male', u'age': 43}, u'faceId': u'ce60ca14-ac89-4d98-a233-2a848769de9f', u'faceRectangle': {u'width': 252, u'top': 185, u'height': 252, u'left': 1002}}]
 
         self._update_oxford = 0
         self.python_logo_image = pygame.image.load('pylogo.png')
@@ -66,7 +75,6 @@ class BodyGameRuntime(object):
     
     """description of class"""
     def face_finder_thread(self):
-        self.face_client = Client.Face(key)
         global surface_frame_queue
         global faces_result_queue
         while True:
@@ -88,7 +96,13 @@ class BodyGameRuntime(object):
                     # TODO: uncomment this. done for testing.
                     pygame.image.save(frame, 'file.jpg')
                     start = datetime.datetime.utcnow()
-                    faces = self.detect_faces('file.jpg')
+                    faces = detect_faces('file.jpg')
+
+                    # wait time if we are trying to rate limit
+                    if RATE_LIMIT_PER_MINUTE:
+                        60 / RATE_LIMIT_PER_MINUTE
+                        import time
+                        time.sleep(60 / RATE_LIMIT_PER_MINUTE)
 
                     # IDENTIFY START
                     faceIds = []
@@ -117,13 +131,8 @@ class BodyGameRuntime(object):
                         response = requests.get("https://api.projectoxford.ai/face/v1.0/persongroups", 
                                                 headers = {"Ocp-Apim-Subscription-Key":key})
                         person_groups = [i['personGroupId'] for i in response.json()]
-
-                        # identify any known faces from the second photo
-                        # TODO: This api was returning nothing, so call manually.
-                        # person_groups = self.face_client.personGroup.list()
                         
                         for personGroup in person_groups:
-                            #identifyResults = self.face_client.identify(personGroup, faceIds)
                             r = requests.post('https://api.projectoxford.ai/face/v1.0/identify', 
                                               json = { 'faceIds': faceIds, 'personGroupId': personGroup, 'maxNumOfCandidatesReturned':1}, 
                                               headers = {'Ocp-Apim-Subscription-Key':key})
@@ -147,9 +156,6 @@ class BodyGameRuntime(object):
                     faces_result_queue.put((faces, bodies))
             except Exception as e:
                 print(e)
-
-    def detect_faces(self, path):
-        return self.face_client.detect({'path': path, 'analyzesAge' : True, 'analyzesGender' : True})
 
     def draw_color_frame(self, frame, target_surface):
         target_surface.lock()
@@ -300,13 +306,28 @@ class BodyGameRuntime(object):
                     self._frame_surface.blit(scaled_image, (chest_position.x - (scaled_image.get_width()/2), chest_position.y - (scaled_image.get_height()/2)))
         except Exception as e:
             print("Exception in drawing logos on chest:", e)
+    
+    def user_engaged(self, face):
+        threshold = 20
+        if face and face['faceAttributes'] and face['faceAttributes']['headPose']:
+            head_pose = face['faceAttributes']['headPose']
+            roll = head_pose['roll']
+            yaw = head_pose['yaw']
+            
+            # the closer the user is looking straight on the closer to 0 yaw and roll are.
+            engagement_number = max(abs(roll), abs(yaw))
+            if engagement_number <= threshold:
+                return True
+            else:
+                return False
+        return "CANNOT DETECT"
 
     def draw_oxford_labels_on_surface(self):
         try:
             if hearts_and_minds_mode:
                 font = pygame.font.SysFont("comicsansms", 48)
                 text = font.render("Winning Hearts and Minds mode enabled", True, pygame.color.THECOLORS['black'])
-                self._frame_surface.blit(text, (900, 50))
+                self._frame_surface.blit(text, (900, 150))
 
             # check if we have faces to update from the background thread queue
             try:
@@ -364,24 +385,35 @@ class BodyGameRuntime(object):
                         
                             # Draw the Age Above the face
                             font = pygame.font.SysFont("comicsansms", 48)
-                            age = face['attributes']['age']
+                            age = face['faceAttributes']['age']
                             if hearts_and_minds_mode:
                                 age = "{} :)".format(int(age * .65))
-                            string_to_draw = "{} - {}".format(age, face['attributes']['gender'])
+                            strings_to_draw = [
+                                age, 
+                                face['faceAttributes']['gender'], 
+                                "engaged:" + str(self.user_engaged(face)),
+                                "kinect_engaged:" + str(this_body.engaged)
+                           ]
 
                             # TODO: if we have the identity, add it.
                             
-                            text = font.render(string_to_draw, True, pygame.color.THECOLORS['black'])
-                            self._frame_surface.blit(text, (head_position.x, max(head_position.y - 150, 0)))
+                            height = 200;
+                            line_height = 60;
+                            for string in strings_to_draw:
+                                text = font.render(string, True, pygame.color.THECOLORS['black'], pygame.color.THECOLORS['white'])
+                                self._frame_surface.blit(text, (head_position.x, max(head_position.y - height, 0)))
+                                height = height - line_height
+                                
+
 
                         except StopIteration:
                             pass # this is fine. we just didn't find the body
         except Exception as e:
             print("Exception in drawing text over head:", e)
 
-__main__ = "Guess Your Age Game"
 
 #face_finder_thread().run()
-
-game = BodyGameRuntime();
-game.run();
+if __name__ == "__main__":
+    __main__ = "Guess Your Age Game"
+    game = BodyGameRuntime();
+    game.run();
