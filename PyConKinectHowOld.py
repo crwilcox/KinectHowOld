@@ -1,4 +1,4 @@
-HEARTS_AND_MINDS_MODE = True
+HEARTS_AND_MINDS_MODE = False
 SHOW_PYTHON_VERSION = True
 SHOW_AGE = True 
 SHOW_GENDER = True
@@ -469,11 +469,11 @@ class BodyGameRuntime(object):
                                 strings_to_draw.append("python version: " + self.get_python_version(age))
 
                             # TODO: if we have the identity, add it.
-                            height = (len(strings_to_draw) * 60) + 20;
+                            height = (len(strings_to_draw) * 60) + 50;
                             line_height = 60;
                             for string in strings_to_draw:
                                 text = font.render(str(string), True, pygame.color.THECOLORS['black'], pygame.color.THECOLORS['white'])
-                                self._frame_surface.blit(text, (head_position.x, max(head_position.y - height, 0)))
+                                self._frame_surface.blit(text, (head_position.x + 75, max(head_position.y - height, 0)))
                                 height = height - line_height
                                 
 
