@@ -12,7 +12,7 @@
     <OutputPath>.</OutputPath>
     <Name>PyConKinectHowOld</Name>
     <RootNamespace>PyConKinectHowOld</RootNamespace>
-    <InterpreterId>MSBuild|env36_64|$(MSBuildProjectFullPath)</InterpreterId>
+    <InterpreterId>MSBuild|env36|$(MSBuildProjectFullPath)</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -33,14 +33,14 @@
     <Content Include="requirements.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Interpreter Include="env36_64\">
-      <Id>env36_64</Id>
+    <Interpreter Include="env36\">
+      <Id>env36</Id>
       <Version>3.6</Version>
-      <Description>env36_64 (Python 3.6 (64-bit))</Description>
+      <Description>env36 (Python 3.6 (32-bit))</Description>
       <InterpreterPath>Scripts\python.exe</InterpreterPath>
       <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
       <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
-      <Architecture>X64</Architecture>
+      <Architecture>X86</Architecture>
     </Interpreter>
   </ItemGroup>
   <PropertyGroup>
