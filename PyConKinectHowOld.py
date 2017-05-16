@@ -3,6 +3,10 @@ SHOW_PYTHON_VERSION = True
 SHOW_AGE = True 
 SHOW_GENDER = True
 SHOW_ENGAGED = True
+SHOW_IDENTITY = True
+
+RATE_LIMIT_PER_MINUTE = 20
+
 
 from pykinect2 import PyKinectV2
 from pykinect2.PyKinectV2 import *
@@ -30,8 +34,7 @@ else:
 from threading import Thread
 from queue import Queue, Empty
 import pygame
-#from projectoxford import Client
-RATE_LIMIT_PER_MINUTE = 20
+
 
 key = config.COGNITIVE_FACES_KEY
 
@@ -110,46 +113,44 @@ class BodyGameRuntime(object):
                         import time
                         time.sleep(60 / RATE_LIMIT_PER_MINUTE)
 
-                    # IDENTIFY START
+                    # Collect all face ids. This way we can batch the request.
                     faceIds = []
-                    for result in faces:
-                        faceIds.append(result['faceId'])
-                    if faceIds:
-                        '''
-                        [
-  {
-    "personGroupId": "8a7face5-ac5d-460b-928d-f4414895d41a",
-    "name": "Python",
-    "userData": "crwilcox-macbook"
-  },
-  {
-    "personGroupId": "d7ddf725-9fef-4fdb-afc1-da3b2a8ad1ea",
-    "name": "Microsoft",
-    "userData": "crwilcox-macbook"
-  }
-]
-
-
-'''
-
+                    for face in faces:
+                        faceId = face['faceId']
+                        if faceId:
+                            faceIds.append(faceId)
+                    # if we have any face ids. We should try to get identities
+                    identities = {}
+                    if faceIds and SHOW_IDENTITY:
+                        # get all of the person groups
                         response = requests.get("https://api.projectoxford.ai/face/v1.0/persongroups", 
                                                 headers = {"Ocp-Apim-Subscription-Key":key})
                         person_groups = [i['personGroupId'] for i in response.json()]
-                        
+                        # for each person group, try to identify this face.
                         for personGroup in person_groups:
                             identifyResults = CF.face.identify(faceIds, personGroup)
-                            #if not 'error' in identifyResults.keys():
                             for result in identifyResults:
-                                # TODO GUESSING but there is a faceid here.
                                 for candidate in result['candidates']:
                                     confidence = candidate['confidence']
                                     personData = CF.person.get(personGroup, candidate['personId'])
                                     name = personData['name']
                                     print('identified {0} with {1}% confidence'.format(name, str(float(confidence) * 100)))
-
-                                    # take the result and add it back to the faces list.
-
-                    # TODO IDENTIFY END
+                                    
+                                    if result['faceId'] in identities:
+                                        # if the new thing is more confident repplace
+                                        _,oldConfidence = identities[result['faceId']]
+                                        if oldConfidence < confidence:
+                                            identities[result['faceId']] = personData, confidence
+                                    else:
+                                        identities[result['faceId']] = personData, confidence
+                        # for each face, see if we now have the identity and add it to the object
+                        faces_with_ids = []
+                        for face in faces:
+                            if face['faceId'] in identities:
+                                personData,_ = identities[face['faceId']]
+                                face['personData'] = personData
+                            faces_with_ids.append(face)
+                        faces = faces_with_ids
 
                     end = datetime.datetime.utcnow()
                     time_exec = end - start
@@ -450,6 +451,9 @@ class BodyGameRuntime(object):
                             # Based on options configured, display different things.
                             if HEARTS_AND_MINDS_MODE:
                                 age = int(age * .65)
+
+                            if SHOW_IDENTITY:
+                                strings_to_draw.append(face['personData']['name'])
 
                             if SHOW_AGE:
                                 strings_to_draw.append(age)
