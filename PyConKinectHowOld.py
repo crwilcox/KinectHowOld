@@ -1,3 +1,9 @@
+HEARTS_AND_MINDS_MODE = True
+SHOW_PYTHON_VERSION = True
+SHOW_AGE = True 
+SHOW_GENDER = True
+SHOW_ENGAGED = True
+
 from pykinect2 import PyKinectV2
 from pykinect2.PyKinectV2 import *
 from pykinect2 import PyKinectRuntime
@@ -25,7 +31,6 @@ from queue import Queue, Empty
 import pygame
 from projectoxford import Client
 RATE_LIMIT_PER_MINUTE = 20
-hearts_and_minds_mode = True
 
 key = config.COGNITIVE_FACES_KEY
 
@@ -306,7 +311,64 @@ class BodyGameRuntime(object):
                     self._frame_surface.blit(scaled_image, (chest_position.x - (scaled_image.get_width()/2), chest_position.y - (scaled_image.get_height()/2)))
         except Exception as e:
             print("Exception in drawing logos on chest:", e)
-    
+   
+    def get_python_version(age):
+        release_years = [
+            (0, "Assembly"),
+            (1956, "FORTRAN"),
+            # 1957
+            (1958, "ALGOL II"),
+            # 1959
+            (1960, "ALGOL 60"),
+            # 1961
+            (1962, "FORTRAN IV"),
+            # 1963 - 1965
+            (1966, "FORTRAN 66"),
+            # 1967
+            (1968, "ALGOL 68"),
+            (1970, "Pascal"),
+            # 1971
+            (1972, "Smalltalk"),
+            # 1973 - 1976
+            (1977, "FORTRAN 77"),
+            (1978, "K&R C"),
+            # 1979
+            (1980, "Smalltalk"),
+            # 1981 - 1987
+            (1988, "Module-3"),
+            (1989, "C89"),
+            (1990, "Haskell"),
+            (1991, "Python 0.9"),
+            # 1992, 1993
+            (1994, "Python 1.0"),
+            # 1995, 1996
+            (1997, "Python 1.5"),
+            # 1998, 1999
+            (2000, "Python 2.0"),
+            (2001, "Python 2.2"),
+            # 2002
+            (2003, "Python 2.3"),
+            (2004, "Python 2.4"),
+            # 2005
+            (2006, "Python 2.5"),
+            #2007
+            (2008, "Python 3.0"),
+            (2009, "Python 3.1"),
+            # 2010
+            (2011, "Python 3.2"),
+            (2012, "Python 3.3"),
+            # 2013
+            (2014, "Python 3.4"),
+            (2015, "Python 3.5"),
+            (2016, "Python 3.6"),
+        ]
+
+        year = datetime.datetime.now() - timedelta(years=age)
+        for release, name in reversed(release_years):
+            if release < year:
+                return name
+
+        
     def user_engaged(self, face):
         threshold = 20
         if face and face['faceAttributes'] and face['faceAttributes']['headPose']:
@@ -324,7 +386,7 @@ class BodyGameRuntime(object):
 
     def draw_oxford_labels_on_surface(self):
         try:
-            if hearts_and_minds_mode:
+            if HEARTS_AND_MINDS_MODE:
                 font = pygame.font.SysFont("comicsansms", 48)
                 text = font.render("Winning Hearts and Minds mode enabled", True, pygame.color.THECOLORS['black'])
                 self._frame_surface.blit(text, (900, 150))
@@ -386,18 +448,28 @@ class BodyGameRuntime(object):
                             # Draw the Age Above the face
                             font = pygame.font.SysFont("comicsansms", 48)
                             age = face['faceAttributes']['age']
-                            if hearts_and_minds_mode:
+                            
+                            strings_to_draw = []
+
+                            # Based on options configured, display different things.
+                            if HEARTS_AND_MINDS_MODE:
                                 age = "{} :)".format(int(age * .65))
-                            strings_to_draw = [
-                                age, 
-                                face['faceAttributes']['gender'], 
-                                "engaged:" + str(self.user_engaged(face)),
-                                "kinect_engaged:" + str(this_body.engaged)
-                           ]
+
+                            if SHOW_AGE:
+                                strings_to_draw.append(age)
+                                
+                            if SHOW_GENDER:
+                                strings_to_draw.append(face['faceAttributes']['gender'])
+                            
+                            if SHOW_ENGAGED:
+                                strings_to_draw.append("engaged:" + str(self.user_engaged(face)))
+                                strings_to_draw.append("kinect_engaged:" + str(this_body.engaged))
+                           
+                            if SHOW_PYTHON_VERSION:
+                                strings_to_draw.append("python version: " + get_python_version(age))
 
                             # TODO: if we have the identity, add it.
-                            
-                            height = 200;
+                            height = (len(strings_to_draw) * 60) + 20;
                             line_height = 60;
                             for string in strings_to_draw:
                                 text = font.render(string, True, pygame.color.THECOLORS['black'], pygame.color.THECOLORS['white'])
