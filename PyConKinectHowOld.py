@@ -2,7 +2,7 @@ HEARTS_AND_MINDS_MODE = False
 SHOW_PYTHON_VERSION = True
 SHOW_AGE = True 
 SHOW_GENDER = True
-SHOW_ENGAGED = True
+SHOW_ENGAGED = False
 SHOW_IDENTITY = True
 
 RATE_LIMIT_PER_MINUTE = 20
@@ -466,11 +466,10 @@ class BodyGameRuntime(object):
                                 strings_to_draw.append(face['faceAttributes']['gender'])
                             
                             if SHOW_ENGAGED:
-                                strings_to_draw.append("engaged:" + str(self.user_engaged(face)))
-                                strings_to_draw.append("kinect_engaged:" + str(this_body.engaged))
+                                strings_to_draw.append(f"engaged: {str(self.user_engaged(face))} (kinect: {str(this_body.engaged)})")
                            
                             if SHOW_PYTHON_VERSION:
-                                strings_to_draw.append("python version: " + self.get_python_version(age))
+                                strings_to_draw.append(f"python version: {self.get_python_version(age)}")
 
                             # TODO: if we have the identity, add it.
                             height = (len(strings_to_draw) * 60) + 50;
