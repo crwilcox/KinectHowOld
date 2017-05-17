@@ -201,12 +201,6 @@ class BodyGameRuntime(object):
                 if not self.add_frame_to_queue % 30:
                     surface_frame_queue.put((self._frame_surface, self._bodies))
             
-            
-            # Draw GitHub url in lower left corner of screen
-            font = pygame.font.SysFont("comicsansms", 48)
-            text = font.render("https://github.com/crwilcox/KinectHowOld", True, pygame.color.THECOLORS['black'])
-            self._frame_surface.blit(text, (0, self._frame_surface.get_height() -40))
-
             # Draw Chest Logos Using Kinect Data
             self.draw_logos_on_chests()
 
@@ -217,11 +211,10 @@ class BodyGameRuntime(object):
             if self._kinect.has_new_body_frame():
                 self._bodies = self._kinect.get_last_body_frame()
 
-            
             # TODO: record locations of heads and their IDs. This will allow
             # us to track them through the frame.
             # the faces list then can relate to the kinect
-
+            
             # --- copy back buffer surface pixels to the screen, resize it if needed and keep aspect ratio
             # --- (screen size may be different from Kinect's color frame size) 
             h_to_w = float(self._frame_surface.get_height()) / self._frame_surface.get_width()
@@ -230,7 +223,7 @@ class BodyGameRuntime(object):
             self._screen.blit(surface_to_draw, (0,0))
             surface_to_draw = None
 
-            # at the very end, we can layer on the curtain
+            # Draw the curtain after, layering over the other surface
             self.draw_curtain()
 
             pygame.display.update()
@@ -271,6 +264,13 @@ class BodyGameRuntime(object):
         pygame.draw.lines(self._screen, curtain_secondary_color, False,
                           [[curtain_width, height],[curtain_width,curtain_width], [width-curtain_width, curtain_width], [width-curtain_width, height]], 
                           2)
+
+        # Draw GitHub Repo Address in middle top of screen (on curtain)
+        font = pygame.font.SysFont("comicsansms", 30)
+        text = font.render("https://github.com/crwilcox/KinectHowOld", True, pygame.color.THECOLORS['gold'])
+        text_rect = text.get_rect(center=((self._screen.get_width() / 2), 17))
+        self._screen.blit(text, text_rect)
+
 
     def get_body_head_position(self, body):
         head_joint = body.joints[JointType_Head]
