@@ -471,7 +471,6 @@ class BodyGameRuntime(object):
                             if SHOW_PYTHON_VERSION:
                                 strings_to_draw.append(f"python version: {self.get_python_version(age)}")
 
-                            # TODO: if we have the identity, add it.
                             height = (len(strings_to_draw) * 60) + 50;
                             line_height = 60;
                             for string in strings_to_draw:
