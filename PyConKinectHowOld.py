@@ -74,6 +74,7 @@ class BodyGameRuntime(object):
 
         # here we will store skeleton data 
         self._bodies = None
+        self._stored_bodies = {}
 
         self._faces = []
         self._face_bodies = []
@@ -425,8 +426,8 @@ class BodyGameRuntime(object):
                 else:
                     return False
 
-            # track ids of bodies. This way we can record old info. this 
-            # makes it seem faster. also, if we have outages of wifi old returning people will get bubbles
+            # From the recorded data, match up the face to a tracked body. Store this for later use.
+            # This makes it seem faster and handles minor wifi outages
             for face in self._faces:
                 top_y = face['faceRectangle']['top']
                 left = face['faceRectangle']['left']
@@ -436,55 +437,58 @@ class BodyGameRuntime(object):
                
                 # only put the info on if this head is tracked.
                 if tracked_head_points: 
-                    
                     # draw age data for tracked heads
                     bodies = [i for i in tracked_head_points if is_point_contained(i[1], top_y, top_y+height, left, left + width)]
                     if bodies:
                         # TODO: take the first for now. in the future we should find the closest match to the head marker
                         body, colorspace_point = bodies[0]
-                        try:
-                            this_body = next((i for i in self._bodies.bodies if i.tracking_id == body.tracking_id))
-                            head_position = self.get_body_head_position(this_body)
+
+                        # we found a body that is tracked that matches a face. Store this in the dictionary
+                        self._stored_bodies[body.tracking_id] = face
+
+            # for each tracked body on the kinect, draw the data.
+            for tracking_id in self._stored_bodies.keys():
+                face = self._stored_bodies[tracking_id]
+                try:
+                    this_body = next((i for i in self._bodies.bodies if i.tracking_id == tracking_id))
+                    head_position = self.get_body_head_position(this_body)
                         
-                            # Draw the Age Above the face
-                            font = pygame.font.SysFont("comicsansms", 48)
-                            age = face['faceAttributes']['age']
+                    # Draw the Age Above the face
+                    font = pygame.font.SysFont("comicsansms", 48)
+                    age = face['faceAttributes']['age']
                             
-                            strings_to_draw = []
+                    strings_to_draw = []
 
-                            # Based on options configured, display different things.
-                            if HEARTS_AND_MINDS_MODE:
-                                age = int(age * .65)
+                    # Based on options configured, display different things.
+                    if HEARTS_AND_MINDS_MODE:
+                        age = int(age * .65)
 
-                            if SHOW_IDENTITY:
-                                strings_to_draw.append(face['personData']['name'])
+                    if SHOW_IDENTITY:
+                        strings_to_draw.append(face['personData']['name'])
 
-                            if SHOW_AGE:
-                                strings_to_draw.append(age)
+                    if SHOW_AGE:
+                        strings_to_draw.append(age)
                                 
-                            if SHOW_GENDER:
-                                strings_to_draw.append(face['faceAttributes']['gender'])
+                    if SHOW_GENDER:
+                        strings_to_draw.append(face['faceAttributes']['gender'])
                             
-                            if SHOW_ENGAGED:
-                                strings_to_draw.append(f"engaged: {str(self.user_engaged(face))} (kinect: {str(this_body.engaged)})")
+                    if SHOW_ENGAGED:
+                        strings_to_draw.append(f"engaged: {str(self.user_engaged(face))} (kinect: {str(this_body.engaged)})")
                            
-                            if SHOW_PYTHON_VERSION:
-                                strings_to_draw.append(f"python version: {self.get_python_version(age)}")
+                    if SHOW_PYTHON_VERSION:
+                        strings_to_draw.append(f"python version: {self.get_python_version(age)}")
 
-                            height = (len(strings_to_draw) * 60) + 50;
-                            line_height = 60;
-                            for string in strings_to_draw:
-                                text = font.render(str(string), True, pygame.color.THECOLORS['black'], pygame.color.THECOLORS['white'])
-                                self._frame_surface.blit(text, (head_position.x + 75, max(head_position.y - height, 0)))
-                                height = height - line_height
-                                
+                    height = (len(strings_to_draw) * 60) + 50;
+                    line_height = 60;
+                    for string in strings_to_draw:
+                        text = font.render(str(string), True, pygame.color.THECOLORS['black'], pygame.color.THECOLORS['white'])
+                        self._frame_surface.blit(text, (head_position.x + 75, max(head_position.y - height, 0)))
+                        height = height - line_height
 
-
-                        except StopIteration:
-                            pass # this is fine. we just didn't find the body
+                except StopIteration:
+                    pass # this is fine. we just didn't find the body
         except Exception as e:
             print("Exception in drawing text over head:", e)
-
 
 #face_finder_thread().run()
 if __name__ == "__main__":
