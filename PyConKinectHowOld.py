@@ -205,6 +205,10 @@ class BodyGameRuntime(object):
                     surface_frame_queue.put((self._frame_surface, self._bodies))
             
             
+            # Draw GitHub url in lower left corner of screen
+            font = pygame.font.SysFont("comicsansms", 48)
+            text = font.render("https://github.com/crwilcox/KinectHowOld", True, pygame.color.THECOLORS['black'])
+            self._frame_surface.blit(text, (0, self._frame_surface.get_height() -40))
 
             # Draw Chest Logos Using Kinect Data
             self.draw_logos_on_chests()
