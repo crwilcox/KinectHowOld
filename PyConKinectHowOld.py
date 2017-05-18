@@ -7,6 +7,24 @@ SHOW_IDENTITY = True
 
 RATE_LIMIT_PER_MINUTE = 20
 
+# A special list of versions. The key must match the name of the person in
+# the Cognitive Face trained Person Groups.
+CUSTOM_PYTHON_VERSIONS = {
+                            # MSFT-ies
+                            "Brett": "OverflowError: too tall",
+                            "Kieran": "Angry greybeard sysadmin long before his time",
+                            "Shahrokh": "Never had hair",
+                            "Steve": "Vegemite Sandwich",
+
+                            # 'Python Celebrities'
+                            "Brian": "In[2]",
+                            "Cory Benfield": "Censored by NSA request",
+                            "Fernando": "In[1]",
+                            "Glyph": "Glyph",
+                            "Guido": "Using Python since 1990", 
+                            "Larry Hastings": "Slayer of GILs",
+                            "Travis": "Yuuuge Python",
+                        }
 
 from pykinect2 import PyKinectV2
 from pykinect2.PyKinectV2 import *
@@ -29,7 +47,6 @@ if sys.hexversion >= 0x03000000:
     import _thread as thread
 else:
     import thread
-
 
 from threading import Thread
 from queue import Queue, Empty
@@ -476,9 +493,9 @@ class BodyGameRuntime(object):
                         strings_to_draw.append(f"engaged: {str(self.user_engaged(face))} (kinect: {str(this_body.engaged)})")
                            
                     if SHOW_PYTHON_VERSION:
-                        # Add Guido easter egg.
-                        if 'personData' in face and face['personData']['name'] == "Guido":
-                            strings_to_draw.append(f"vintage: Using Python since 1990")
+                        # Check if we have personData and if the person is in 'the list'
+                        if 'personData' in face and face['personData']['name'] in CUSTOM_PYTHON_VERSIONS:
+                            strings_to_draw.append(f"vintage: {CUSTOM_PYTHON_VERSIONS[face['personData']['name']]}")
                         else:
                             strings_to_draw.append(f"vintage: {self.get_python_version(age)}")
 
