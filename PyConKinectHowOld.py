@@ -27,8 +27,8 @@ CUSTOM_PYTHON_VERSIONS = {
                         }
 
 try:
-    from pykinect2 import PyKinectV2
-    from pykinect2 import PyKinectRuntime
+    from pykinect2 import PyKinectV2, PyKinectRuntime
+    from pykinect2.PyKinectV2 import *
 except (ImportError, OSError):
     PyKinectV2 = PyKinectRuntime = None
 
@@ -372,7 +372,7 @@ class BodyGameRuntime(object):
             # 1979
             (1980, "Smalltalk"),
             # 1981 - 1987
-            (1988, "Module-3"),
+            (1988, "Modula-3"),
             (1989, "C89"),
             (1990, "Haskell"),
             (1991, "Python 0.9"),
