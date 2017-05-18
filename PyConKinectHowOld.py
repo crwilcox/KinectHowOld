@@ -1,11 +1,12 @@
 HEARTS_AND_MINDS_MODE = False
 SHOW_PYTHON_VERSION = True
 SHOW_AGE = True 
-SHOW_GENDER = True
+SHOW_GENDER = False
+SHOW_SMILE = True
 SHOW_ENGAGED = False
 SHOW_IDENTITY = True
 
-RATE_LIMIT_PER_MINUTE = 20
+RATE_LIMIT_PER_MINUTE = 90
 
 # A special list of versions. The key must match the name of the person in
 # the Cognitive Face trained Person Groups.
@@ -184,6 +185,8 @@ class BodyGameRuntime(object):
                     time_exec = end - start
                     print('Time: {}, Execution Time: {}, Result:{}'.format(end.strftime('%H:%M:%S'), time_exec, self._faces))
                     faces_result_queue.put((faces, bodies))
+            except KeyboardInterrupt:
+                faces_result_queue.put((KeyboardInterrupt, None))
             except Exception as e:
                 print(e)
 
@@ -200,6 +203,7 @@ class BodyGameRuntime(object):
     def run(self):
         # -------- Start Discovery Thread for Oxford --------
         t = Thread(target=self.face_finder_thread)
+        t.daemon = True
         t.start()
 
         global surface_frame_queue
@@ -431,10 +435,12 @@ class BodyGameRuntime(object):
             # check if we have faces to update from the background thread queue
             try:
                 faces, bodies = faces_result_queue.get(False)
+                if faces is KeyboardInterrupt:
+                    raise KeyboardInterrupt()
                 if faces:
                     self._faces = faces
                     self._face_bodies = bodies
-            except:
+            except Exception:
                 pass
 
             #_faces, _face_bodies  use together
@@ -489,7 +495,7 @@ class BodyGameRuntime(object):
                     head_position = self.get_body_head_position(this_body)
                         
                     # Draw the Age Above the face
-                    font = pygame.font.SysFont("Segoe UI", 48)
+                    font = pygame.font.SysFont("Segoe UI", 36)
                     age = face['faceAttributes']['age']
                             
                     strings_to_draw = []
@@ -502,10 +508,13 @@ class BodyGameRuntime(object):
                         strings_to_draw.append(face['personData']['name'])
 
                     if SHOW_AGE:
-                        strings_to_draw.append(age)
+                        strings_to_draw.append(f"Age: {age}")
                                 
                     if SHOW_GENDER:
                         strings_to_draw.append(face['faceAttributes']['gender'])
+                    
+                    if SHOW_SMILE:
+                        strings_to_draw.append(f"Smiling: {100*face['faceAttributes']['smile']:.0f}%")
                             
                     if SHOW_ENGAGED:
                         strings_to_draw.append(f"engaged: {str(self.user_engaged(face))} (kinect: {str(this_body.engaged)})")
@@ -513,9 +522,9 @@ class BodyGameRuntime(object):
                     if SHOW_PYTHON_VERSION:
                         # Check if we have personData and if the person is in 'the list'
                         if 'personData' in face and face['personData']['name'] in CUSTOM_PYTHON_VERSIONS:
-                            strings_to_draw.append(f"vintage: {CUSTOM_PYTHON_VERSIONS[face['personData']['name']]}")
+                            strings_to_draw.append(f"Vintage: {CUSTOM_PYTHON_VERSIONS[face['personData']['name']]}")
                         else:
-                            strings_to_draw.append(f"vintage: {self.get_python_version(age)}")
+                            strings_to_draw.append(f"Vintage: {self.get_python_version(age)}")
 
                     height = (len(strings_to_draw) * 60) + 50
                     line_height = 60
