@@ -480,7 +480,7 @@ class BodyGameRuntime(object):
                     if HEARTS_AND_MINDS_MODE:
                         age = int(age * .65)
 
-                    if SHOW_IDENTITY:
+                    if SHOW_IDENTITY and 'personData' in face:
                         strings_to_draw.append(face['personData']['name'])
 
                     if SHOW_AGE:
@@ -499,8 +499,8 @@ class BodyGameRuntime(object):
                         else:
                             strings_to_draw.append(f"vintage: {self.get_python_version(age)}")
 
-                    height = (len(strings_to_draw) * 60) + 50;
-                    line_height = 60;
+                    height = (len(strings_to_draw) * 60) + 50
+                    line_height = 60
                     for string in strings_to_draw:
                         text = font.render(str(string), True, pygame.color.THECOLORS['black'], pygame.color.THECOLORS['white'])
                         self._frame_surface.blit(text, (head_position.x + 75, max(head_position.y - height, 0)))
