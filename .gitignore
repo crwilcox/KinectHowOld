@@ -1,3 +1,5 @@
 /env36/
 
-
+__pycache__/
+/.vs
+*.user

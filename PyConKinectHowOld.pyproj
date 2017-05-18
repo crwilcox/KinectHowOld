@@ -29,6 +29,8 @@
     <Compile Include="PyConKinectHowOld.py" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="MicrosoftLogo.png" />
+    <Content Include="pylogo.png" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />
   </ItemGroup>

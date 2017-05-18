@@ -26,9 +26,11 @@ CUSTOM_PYTHON_VERSIONS = {
                             "Travis": "Yuuuge Python",
                         }
 
-from pykinect2 import PyKinectV2
-from pykinect2.PyKinectV2 import *
-from pykinect2 import PyKinectRuntime
+try:
+    from pykinect2 import PyKinectV2
+    from pykinect2 import PyKinectRuntime
+except (ImportError, OSError):
+    PyKinectV2 = PyKinectRuntime = None
 
 import ctypes
 import _ctypes
@@ -84,10 +86,15 @@ class BodyGameRuntime(object):
         self._done = False
 
         # Kinect runtime object, we want only color and body frames 
-        self._kinect = PyKinectRuntime.PyKinectRuntime(PyKinectV2.FrameSourceTypes_Color | PyKinectV2.FrameSourceTypes_Body)
+        if PyKinectRuntime:
+            self._kinect = PyKinectRuntime.PyKinectRuntime(PyKinectV2.FrameSourceTypes_Color | PyKinectV2.FrameSourceTypes_Body)
+            frame_dimension = self._kinect.color_frame_desc.Width, self._kinect.color_frame_desc.Height
+        else:
+            self._kinect = None
+            frame_dimension = 800, 600
 
         # back buffer surface for getting Kinect color frames, 32bit color, width and height equal to the Kinect color frame size
-        self._frame_surface = pygame.Surface((self._kinect.color_frame_desc.Width, self._kinect.color_frame_desc.Height), 0, 32)
+        self._frame_surface = pygame.Surface(frame_dimension, 0, 32)
 
         # here we will store skeleton data 
         self._bodies = None
@@ -98,6 +105,9 @@ class BodyGameRuntime(object):
 
         self._update_oxford = 0
         self.python_logo_image = pygame.image.load('pylogo.png')
+        self.msft_logo_image = pygame.image.load('microsoftlogo.png')
+
+        self.bg_color = pygame.Color(55, 117, 169)
 
     
     """description of class"""
@@ -178,6 +188,9 @@ class BodyGameRuntime(object):
                 print(e)
 
     def draw_color_frame(self, frame, target_surface):
+        if not self._kinect:
+            return
+        
         target_surface.lock()
         address = self._kinect.surface_as_array(target_surface.get_buffer())
         ctypes.memmove(address, frame.ctypes.data, frame.size)
@@ -210,7 +223,7 @@ class BodyGameRuntime(object):
                     
             # --- Getting frames and drawing  
             # --- Woohoo! We've got a color frame! Let's fill out back buffer surface with frame's data 
-            if self._kinect.has_new_color_frame():
+            if self._kinect and self._kinect.has_new_color_frame():
                 frame = self._kinect.get_last_color_frame()
                 self.add_frame_to_queue+=1
                 self.draw_color_frame(frame, self._frame_surface)
@@ -224,9 +237,9 @@ class BodyGameRuntime(object):
 
             #Draw Age Labels on Heads using Project Oxford returned Data
             self.draw_oxford_labels_on_surface()
-    
+
             # Update stored body frames if we have a new one
-            if self._kinect.has_new_body_frame():
+            if self._kinect and self._kinect.has_new_body_frame():
                 self._bodies = self._kinect.get_last_body_frame()
 
             # TODO: record locations of heads and their IDs. This will allow
@@ -253,14 +266,15 @@ class BodyGameRuntime(object):
             self._clock.tick(60)
 
         # Close our Kinect sensor, close the window and quit.
-        self._kinect.close()
+        if self._kinect:
+            self._kinect.close()
         pygame.quit()
 
     def draw_curtain(self):
         width = self._screen.get_width()
         height = self._screen.get_height()
 
-        curtain_primary_color = pygame.color.Color('darkred')
+        curtain_primary_color = self.bg_color
         curtain_secondary_color = pygame.color.Color('gold')
         curtain_width = 40
 
@@ -283,19 +297,23 @@ class BodyGameRuntime(object):
                           [[curtain_width, height],[curtain_width,curtain_width], [width-curtain_width, curtain_width], [width-curtain_width, height]], 
                           2)
 
+        self._screen.blit(self.msft_logo_image, (0, 0))
+
         # Draw GitHub Repo Address in middle top of screen (on curtain)
-        font = pygame.font.SysFont("comicsansms", 30)
+        font = pygame.font.SysFont("Segoe UI", 30)
         text = font.render("https://github.com/crwilcox/KinectHowOld", True, pygame.color.THECOLORS['gold'])
         text_rect = text.get_rect(center=((self._screen.get_width() / 2), 17))
         self._screen.blit(text, text_rect)
 
 
     def get_body_head_position(self, body):
+        assert self._kinect
         head_joint = body.joints[JointType_Head]
         position = self._kinect.body_joint_to_color_space(head_joint)
         return position
 
     def get_body_chest_position(self, body):
+        assert self._kinect
         joint = body.joints[JointType_SpineMid]
         position = self._kinect.body_joint_to_color_space(joint)
         return position
@@ -406,7 +424,7 @@ class BodyGameRuntime(object):
     def draw_oxford_labels_on_surface(self):
         try:
             if HEARTS_AND_MINDS_MODE:
-                font = pygame.font.SysFont("comicsansms", 48)
+                font = pygame.font.SysFont("Segoe UI", 48)
                 text = font.render("Winning Hearts and Minds mode enabled", True, pygame.color.THECOLORS['black'])
                 self._frame_surface.blit(text, (900, 150))
 
@@ -471,7 +489,7 @@ class BodyGameRuntime(object):
                     head_position = self.get_body_head_position(this_body)
                         
                     # Draw the Age Above the face
-                    font = pygame.font.SysFont("comicsansms", 48)
+                    font = pygame.font.SysFont("Segoe UI", 48)
                     age = face['faceAttributes']['age']
                             
                     strings_to_draw = []
@@ -514,5 +532,5 @@ class BodyGameRuntime(object):
 #face_finder_thread().run()
 if __name__ == "__main__":
     __main__ = "Guess Your Age Game"
-    game = BodyGameRuntime();
-    game.run();
+    game = BodyGameRuntime()
+    game.run()
