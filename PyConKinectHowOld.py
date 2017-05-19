@@ -36,6 +36,7 @@ CUSTOM_PYTHON_VERSIONS = {
     "Kieran": "Angry greybeard sysadmin long before his time",
     "Shahrokh": "Never had hair",
     "Steve": "Vegemite Sandwich",
+    "Eric Camplin": "Socks and sandals",
 
     # 'Python Celebrities'
     "Brian": "In[2]",
@@ -45,6 +46,10 @@ CUSTOM_PYTHON_VERSIONS = {
     "Guido": "Using Python since 1990",
     "Larry Hastings": "Slayer of GILs",
     "Travis": "Yuuuge Python",
+    "Brandon Rhodes": "Conference Chair Extraordinaire",
+
+    #Random booth people
+    "Brian Russo":"w0lfie",
 }
 
 key = config.COGNITIVE_FACES_KEY
@@ -633,7 +638,10 @@ class BodyGameRuntime(object):
                         strings_to_draw.append(face['personData']['name'])
 
                     if SHOW_AGE:
-                        strings_to_draw.append(f"Age: {age}")
+                        if face.get('personData', {}).get('name') == 'Claudia':
+                            strings_to_draw.append("Age: Sweet Sixteen")
+                        else:
+                            strings_to_draw.append(f"Age: {age}")
 
                     if SHOW_GENDER:
                         strings_to_draw.append(
@@ -670,8 +678,8 @@ class BodyGameRuntime(object):
                                 f"Vintage: {self.get_python_version(age)}"
                             )
 
-                    height = (len(strings_to_draw) * 60) + 50
-                    line_height = 60
+                    line_height = 50
+                    height = (len(strings_to_draw) * line_height) + 50
                     for string in strings_to_draw:
                         text = font.render(
                             str(string),
