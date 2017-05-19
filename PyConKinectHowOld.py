@@ -152,7 +152,8 @@ class BodyGameRuntime(object):
                         print(
                             'identified {0} with {1}% confidence'.format(
                                 name,
-                                str(float(confidence) * 100))
+                                str(float(confidence) * 100)
+                            )
                         )
 
                         if result['faceId'] in identities:
@@ -181,7 +182,8 @@ class BodyGameRuntime(object):
             'Time: {}, Execution Time: {}, Result:{}'.format(
                 end.strftime('%H:%M:%S'),
                 time_exec,
-                self._faces)
+                self._faces
+            )
         )
         faces_result_queue.put((faces, bodies))
 
@@ -403,12 +405,12 @@ class BodyGameRuntime(object):
             if self._bodies:
                 tracked_bodies = (
                     body for body in self._bodies.bodies if body.is_tracked and
-                                                            body.joints[
-                                                                PyKV2.JointType_SpineMid
-                                                            ].TrackingState is not PyKV2.TrackingState_NotTracked and
-                                                            body.joints[
-                                                                PyKV2.JointType_SpineShoulder
-                                                            ].TrackingState is not PyKV2.TrackingState_NotTracked
+                    body.joints[
+                        PyKV2.JointType_SpineMid
+                    ].TrackingState is not PyKV2.TrackingState_NotTracked and
+                    body.joints[
+                        PyKV2.JointType_SpineShoulder
+                    ].TrackingState is not PyKV2.TrackingState_NotTracked
                 )
 
                 # draw logos on tracked chests
@@ -496,9 +498,9 @@ class BodyGameRuntime(object):
     def user_engaged(self, face):
         threshold = 20
         if (
-                        face and
-                        face['faceAttributes'] and
-                    face['faceAttributes']['headPose']
+            face and
+            face['faceAttributes'] and
+            face['faceAttributes']['headPose']
         ):
 
             head_pose = face['faceAttributes']['headPose']
@@ -543,9 +545,9 @@ class BodyGameRuntime(object):
             if self._face_bodies:
                 tracked_bodies = [
                     i for i in self._face_bodies.bodies if i.is_tracked and
-                                                           i.joints[
-                                                               PyKV2.JointType_Head
-                                                           ].TrackingState is not PyKV2.TrackingState_NotTracked
+                    i.joints[
+                        PyKV2.JointType_Head
+                    ].TrackingState is not PyKV2.TrackingState_NotTracked
                 ]
 
                 if tracked_bodies:
@@ -566,12 +568,12 @@ class BodyGameRuntime(object):
                 is point contained. Assumes top left 0,0
                 """
                 if (
-                                        right_x + pixel_variation >
-                                    point.x >
-                                    left_x - pixel_variation and
-                                        bottom_y + pixel_variation >
-                                    point.y >
-                                    top_y - pixel_variation
+                    right_x + pixel_variation >
+                    point.x >
+                    left_x - pixel_variation and
+                    bottom_y + pixel_variation >
+                    point.y >
+                    top_y - pixel_variation
                 ):
                     return True
                 else:
@@ -655,9 +657,9 @@ class BodyGameRuntime(object):
                         # Check if we have personData and if the person is in
                         # 'the list'
                         if (
-                                        'personData' in face and
-                                        face['personData']['name'] in
-                                        CUSTOM_PYTHON_VERSIONS
+                            'personData' in face and
+                            face['personData']['name'] in
+                            CUSTOM_PYTHON_VERSIONS
                         ):
                             strings_to_draw.append(
                                 f"Vintage: "
