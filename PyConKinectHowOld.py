@@ -17,7 +17,7 @@ import requests
 
 import config
 
-HEARTS_AND_MINDS_MODE = False
+HEARTS_AND_MINDS_MODE = True
 SHOW_PYTHON_VERSION = True
 SHOW_AGE = True
 SHOW_GENDER = False
@@ -523,15 +523,6 @@ class BodyGameRuntime(object):
 
     def draw_oxford_labels_on_surface(self):
         try:
-            if HEARTS_AND_MINDS_MODE:
-                font = pygame.font.SysFont("Segoe UI", 48)
-                text = font.render(
-                    "Winning Hearts and Minds mode enabled",
-                    True,
-                    pygame.color.THECOLORS['black']
-                )
-                self._frame_surface.blit(text, (900, 150))
-
             # check if we have faces to update from the background thread queue
             try:
                 faces, bodies = faces_result_queue.get(False)
@@ -640,6 +631,8 @@ class BodyGameRuntime(object):
                     if SHOW_AGE:
                         if face.get('personData', {}).get('name') == 'Claudia':
                             strings_to_draw.append("Age: Sweet Sixteen")
+                        elif HEARTS_AND_MINDS_MODE:
+                            strings_to_draw.append(f'"Age": {age}')
                         else:
                             strings_to_draw.append(f"Age: {age}")
 
