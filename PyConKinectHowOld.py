@@ -10,9 +10,11 @@ import datetime
 import time
 from queue import Queue, Empty
 from threading import Thread
-
+import cv2
+import numpy
 import cognitive_face as CF
 import pygame
+
 import requests
 
 import config
@@ -25,6 +27,7 @@ SHOW_SMILE = True
 SHOW_ENGAGED = False
 SHOW_IDENTITY = True
 OXFORD_GROUPS_URL = "https://api.projectoxford.ai/face/v1.0/persongroups"
+USE_KINECT = False
 
 RATE_LIMIT_PER_MINUTE = 90
 
@@ -59,7 +62,6 @@ faces_result_queue = Queue(10)
 
 CF.Key.set(key)
 
-
 def detect_faces(path):
     faces = CF.face.detect(
         path, landmarks=False, attributes="age,gender,smile,headPose,emotion"
@@ -72,6 +74,7 @@ def detect_faces(path):
 class BodyGameRuntime(object):
     def __init__(self):
         pygame.init()
+
 
         # Used to manage how fast the screen updates
         self._clock = pygame.time.Clock()
@@ -89,7 +92,7 @@ class BodyGameRuntime(object):
         self._done = False
 
         # Kinect runtime object, we want only color and body frames
-        if PyKinectRuntime:
+        if PyKinectRuntime and USE_KINECT:
             self._kinect = PyKinectRuntime.PyKinectRuntime(
                 PyKV2.FrameSourceTypes_Color |
                 PyKV2.FrameSourceTypes_Body
@@ -212,7 +215,7 @@ class BodyGameRuntime(object):
 
             try:
                 # now that we have a frame and bodies
-                if frame is not None and bodies is not None:
+                if frame is not None:
                     self.process_soylent(frame, bodies)
 
             except KeyboardInterrupt:
@@ -220,7 +223,7 @@ class BodyGameRuntime(object):
             except Exception as e:
                 print(e)
 
-    def draw_color_frame(self, frame, target_surface):
+    def draw_kinect_color_frame(self, frame, target_surface):
         if not self._kinect:
             return
 
@@ -235,6 +238,11 @@ class BodyGameRuntime(object):
         t = Thread(target=self.face_finder_thread)
         t.daemon = True
         t.start()
+
+        video_capture = None
+        if not USE_KINECT:
+            # if we aren't using the kinect, grab the default camera
+            video_capture = cv2.VideoCapture(0)
 
         global surface_frame_queue
         global faces_result_queue
@@ -263,25 +271,51 @@ class BodyGameRuntime(object):
                         )
                     )
 
+                    # we need to change the camera res to match
+                    if video_capture:
+                        video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, self._screen.get_width());
+                        video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self._screen.get_height());
+
             # --- Getting frames and drawing
             # --- Woohoo! We've got a color frame! Let's fill out back
             # buffer surface with frame's data
-            if self._kinect and self._kinect.has_new_color_frame():
-                frame = self._kinect.get_last_color_frame()
-                self.add_frame_to_queue += 1
-                self.draw_color_frame(frame, self._frame_surface)
-                frame = None
+            if self._kinect:
+                if self._kinect.has_new_color_frame():
+                    frame = self._kinect.get_last_color_frame()
+                    self.add_frame_to_queue += 1
+                    self.draw_kinect_color_frame(frame, self._frame_surface)
+                    frame = None
 
+                    if not self.add_frame_to_queue % 30:
+                        surface_frame_queue.put(
+                            (self._frame_surface, self._bodies)
+                        )
+            else:
+                def getCamFrame(camera):
+                    retval,frame=camera.read()
+                    if retval:
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        return frame
+                    return None
+
+                # no kinect, just use camera
+                frame = getCamFrame(video_capture)
+                pixl_arr = numpy.swapaxes(frame, 0, 1)
+                self._frame_surface = pygame.surfarray.make_surface(pixl_arr)
+                frame = None
+                
+                self.add_frame_to_queue += 1
                 if not self.add_frame_to_queue % 30:
                     surface_frame_queue.put(
-                        (self._frame_surface, self._bodies)
+                        (self._frame_surface, None)
                     )
 
             # Draw Chest Logos Using Kinect Data
             self.draw_logos_on_chests()
 
             # Draw Age Labels on Heads using Project Oxford returned Data
-            self.draw_oxford_labels_on_surface()
+            locations_and_faces = self.find_oxford_label_locations()
+            self.draw_oxford_labels_on_surface(locations_and_faces)
 
             # Update stored body frames if we have a new one
             if self._kinect and self._kinect.has_new_body_frame():
@@ -521,43 +555,8 @@ class BodyGameRuntime(object):
                 return False
         return "CANNOT DETECT"
 
-    def draw_oxford_labels_on_surface(self):
-        try:
-            # check if we have faces to update from the background thread queue
-            try:
-                faces, bodies = faces_result_queue.get(False)
-                if faces is KeyboardInterrupt:
-                    raise KeyboardInterrupt()
-                if faces:
-                    self._faces = faces
-                    self._face_bodies = bodies
-            except Exception:
-                pass
-
-            # _faces, _face_bodies  use together
-            # move labels based on _bodies as comparison.
-            # we should have tracked user. the label goes above their head
-            tracked_head_points = []
-            if self._face_bodies:
-                tracked_bodies = [
-                    i for i in self._face_bodies.bodies if i.is_tracked and
-                    i.joints[
-                        PyKV2.JointType_Head
-                    ].TrackingState is not PyKV2.TrackingState_NotTracked
-                ]
-
-                if tracked_bodies:
-                    # print(
-                    #     "Kinect Head Position: x:{} y:{}".format(
-                    #         position.x, position.y
-                    #     )
-                    # )
-                    tracked_head_points = [
-                        (i, self.get_body_head_position(i)) for i in
-                        tracked_bodies
-                    ]
-
-            def is_point_contained(
+    def find_oxford_label_locations(self):
+        def is_point_contained(
                     point, top_y, bottom_y, left_x, right_x, pixel_variation=50
             ):
                 """
@@ -575,124 +574,180 @@ class BodyGameRuntime(object):
                 else:
                     return False
 
-            # From the recorded data, match up the face to a tracked body.
-            # Store this for later use.
-            # This makes it seem faster and handles minor wifi outages
-            for face in self._faces:
-                top_y = face['faceRectangle']['top']
-                left = face['faceRectangle']['left']
-                height = face['faceRectangle']['height']
-                width = face['faceRectangle']['width']
-                print(
-                    "Oxford Face Position: Top:{} Left:{} Width:{} Height:{}"
-                    "".format(top_y, left, width, height)
-                )
+        try:
+            faces_to_draw = []
 
-                # only put the info on if this head is tracked.
-                if tracked_head_points:
-                    # draw age data for tracked heads
-                    bodies = [
-                        i for i in tracked_head_points if is_point_contained(
-                            i[1], top_y, top_y + height, left, left + width
-                        )
-                    ]
-                    if bodies:
-                        # TODO: take the first for now. in the future we
-                        # should find the closest match to the head marker
-                        body, colorspace_point = bodies[0]
+            # check if we have faces to update from the background thread queue
+            try:
+                faces, bodies = faces_result_queue.get(False)
+                if faces is KeyboardInterrupt:
+                    raise KeyboardInterrupt()
+                if faces:
+                    self._faces = faces
+                    self._face_bodies = bodies
+            except Exception:
+                pass
 
-                        # we found a body that is tracked that matches a face.
-                        # Store this in the dictionary
-                        self._stored_bodies[body.tracking_id] = face
+            # kinect version uses bodies.
+            if(USE_KINECT):
+                # _faces, _face_bodies  use together
+                # move labels based on _bodies as comparison.
+                # we should have tracked user. the label goes above their head
+                tracked_head_points = []
+                if self._faces:
+                    if self._face_bodies:
+                        tracked_bodies = [
+                            i for i in self._face_bodies.bodies if i.is_tracked and
+                            i.joints[
+                                PyKV2.JointType_Head
+                            ].TrackingState is not PyKV2.TrackingState_NotTracked
+                        ]
 
-            # for each tracked body on the kinect, draw the data.
-            for tracking_id in self._stored_bodies.keys():
-                face = self._stored_bodies[tracking_id]
-                try:
-                    this_body = next(
-                        (i for i in self._bodies.bodies if i.tracking_id ==
-                         tracking_id)
+                        if tracked_bodies:
+                            # print(
+                            #     "Kinect Head Position: x:{} y:{}".format(
+                            #         position.x, position.y
+                            #     )
+                            # )
+                            tracked_head_points = [
+                                (i, self.get_body_head_position(i)) for i in
+                                tracked_bodies
+                            ]
+
+                # From the recorded data, match up the face to a tracked body.
+                # Store this for later use.
+                # This makes it seem faster and handles minor wifi outages
+                for face in self._faces:
+                    top_y = face['faceRectangle']['top']
+                    left = face['faceRectangle']['left']
+                    height = face['faceRectangle']['height']
+                    width = face['faceRectangle']['width']
+                    print(
+                        "Oxford Face Position: Top:{} Left:{} Width:{} Height:{}"
+                        "".format(top_y, left, width, height)
                     )
-                    head_position = self.get_body_head_position(this_body)
 
-                    # Draw the Age Above the face
-                    font = pygame.font.SysFont("Segoe UI", 36)
-                    age = face['faceAttributes']['age']
-
-                    strings_to_draw = []
-
-                    # Based on options configured, display different things.
-                    if HEARTS_AND_MINDS_MODE:
-                        age = int(age * .65)
-
-                    if SHOW_IDENTITY and 'personData' in face:
-                        strings_to_draw.append(face['personData']['name'])
-
-                    if SHOW_AGE:
-                        if face.get('personData', {}).get('name') == 'Claudia':
-                            strings_to_draw.append("Age: Sweet Sixteen")
-                        elif HEARTS_AND_MINDS_MODE:
-                            strings_to_draw.append(f'"Age": {age}')
-                        else:
-                            strings_to_draw.append(f"Age: {age}")
-
-                    if SHOW_GENDER:
-                        strings_to_draw.append(
-                            face['faceAttributes']['gender']
-                        )
-
-                    if SHOW_SMILE:
-                        strings_to_draw.append(
-                            f"Smiling: "
-                            f"{100*face['faceAttributes']['smile']:.0f}%"
-                        )
-
-                    if SHOW_ENGAGED:
-                        strings_to_draw.append(
-                            f"engaged: "
-                            f"{str(self.user_engaged(face))} (kinect: "
-                            f"{str(this_body.engaged)})"
-                        )
-
-                    if SHOW_PYTHON_VERSION:
-                        # Check if we have personData and if the person is in
-                        # 'the list'
-                        if (
-                            'personData' in face and
-                            face['personData']['name'] in
-                            CUSTOM_PYTHON_VERSIONS
-                        ):
-                            strings_to_draw.append(
-                                f"Vintage: "
-                                f"{CUSTOM_PYTHON_VERSIONS[face['personData']['name']]}"
+                    # only put the info on if this head is tracked.
+                    if tracked_head_points:
+                        # draw age data for tracked heads
+                        bodies = [
+                            i for i in tracked_head_points if is_point_contained(
+                                i[1], top_y, top_y + height, left, left + width
                             )
-                        else:
-                            strings_to_draw.append(
-                                f"Vintage: {self.get_python_version(age)}"
-                            )
+                        ]
+                        if bodies:
+                            # TODO: take the first for now. in the future we
+                            # should find the closest match to the head marker
+                            body, colorspace_point = bodies[0]
 
-                    line_height = 50
-                    height = (len(strings_to_draw) * line_height) + 50
-                    for string in strings_to_draw:
-                        text = font.render(
-                            str(string),
-                            True,
-                            pygame.color.THECOLORS['black'],
-                            pygame.color.THECOLORS['white']
+                            # we found a body that is tracked that matches a face.
+                            # Store this in the dictionary
+                            self._stored_bodies[body.tracking_id] = face
+
+                # for each tracked body on the kinect, draw the data.
+                for tracking_id in self._stored_bodies.keys():
+                    face = self._stored_bodies[tracking_id]
+                    try:
+                        this_body = next(
+                            (i for i in self._bodies.bodies if i.tracking_id ==
+                             tracking_id)
                         )
-                        self._frame_surface.blit(
-                            text,
-                            (
-                                head_position.x + 75,
-                                max(
-                                    head_position.y - height, 0
-                                )
+                        head_position = self.get_body_head_position(this_body)
+                        faces_to_draw.append(((head_position.x, head_position.y), face))
+                    except StopIteration:
+                        pass  # this is fine. we just didn't find the body
+            else:
+                # not kinect. We just need to extract the rectangle coordinates
+                if self._faces:
+                    faces_to_draw = [((face['faceRectangle']['left'], face['faceRectangle']['top']), face) 
+                                     for face in self._faces]
+
+            return faces_to_draw
+        except Exception as e:
+            print("Exception in finding faces to draw", e)
+
+    def draw_oxford_labels_on_surface(self, faces_to_draw):
+        try:
+            # render labels once we have locations to put labels
+            for coordinates, face in faces_to_draw:
+                x_coord, y_coord = coordinates
+                # Draw the Age Above the face
+                font = pygame.font.SysFont("Segoe UI", 36)
+                age = face['faceAttributes']['age']
+
+                strings_to_draw = []
+
+                # Based on options configured, display different things.
+                if HEARTS_AND_MINDS_MODE:
+                    age = int(age * .65)
+
+                if SHOW_IDENTITY and 'personData' in face:
+                    strings_to_draw.append(face['personData']['name'])
+
+                if SHOW_AGE:
+                    if face.get('personData', {}).get('name') == 'Claudia':
+                        strings_to_draw.append("Age: Sweet Sixteen")
+                    elif HEARTS_AND_MINDS_MODE:
+                        strings_to_draw.append(f'"Age": {age}')
+                    else:
+                        strings_to_draw.append(f"Age: {age}")
+
+                if SHOW_GENDER:
+                    strings_to_draw.append(
+                        face['faceAttributes']['gender']
+                    )
+
+                if SHOW_SMILE:
+                    strings_to_draw.append(
+                        f"Smiling: "
+                        f"{100*face['faceAttributes']['smile']:.0f}%"
+                    )
+
+                if SHOW_ENGAGED:
+                    strings_to_draw.append(
+                        f"engaged: "
+                        f"{str(self.user_engaged(face))} (kinect: "
+                        f"{str(this_body.engaged)})"
+                    )
+
+                if SHOW_PYTHON_VERSION:
+                    # Check if we have personData and if the person is in
+                    # 'the list'
+                    if (
+                        'personData' in face and
+                        face['personData']['name'] in
+                        CUSTOM_PYTHON_VERSIONS
+                    ):
+                        strings_to_draw.append(
+                            f"Vintage: "
+                            f"{CUSTOM_PYTHON_VERSIONS[face['personData']['name']]}"
+                        )
+                    else:
+                        strings_to_draw.append(
+                            f"Vintage: {self.get_python_version(age)}"
+                        )
+
+                line_height = 50
+                height = (len(strings_to_draw) * line_height) + 50
+                for string in strings_to_draw:
+                    text = font.render(
+                        str(string),
+                        True,
+                        pygame.color.THECOLORS['black'],
+                        pygame.color.THECOLORS['white']
+                    )
+                    self._frame_surface.blit(
+                        text,
+                        (
+                            x_coord + 75,
+                            max(
+                                y_coord - height, 0
                             )
                         )
-                        height = height - line_height
+                    )
+                    height = height - line_height
 
-                except StopIteration:
-                    pass  # this is fine. we just didn't find the body
+
         except Exception as e:
             print("Exception in drawing text over head:", e)
 
